@@ -1645,6 +1645,8 @@ export default function Page() {
   })
 
   const [perMessageMode, setPerMessageMode] = createSignal<"steer" | "queue" | undefined>()
+  const [drainProgress, setDrainProgress] = createSignal<{ current: number; total: number }>()
+  const [countdown, setCountdown] = createSignal<{ remaining: number }>()
   const effectiveQueueMode = () => perMessageMode() ?? settings.general.followup()
 
   const queueEnabled = createMemo(() => {
@@ -1692,15 +1694,16 @@ export default function Page() {
   }
 
   const queueFollowup = (draft: FollowupDraft) => {
+    const itemId = Identifier.ascending("message")
     setFollowup("items", draft.sessionID, (items) => {
       const list = items ?? []
       const editEntry = followup.edit[draft.sessionID]
       if (editEntry?.index !== undefined && editEntry.index >= 0 && editEntry.index <= list.length) {
         const before = list.slice(0, editEntry.index)
         const after = list.slice(editEntry.index)
-        return [...before, { id: Identifier.ascending("message"), ...draft }, ...after]
+        return [...before, { id: itemId, ...draft }, ...after]
       }
-      return [...list, { id: Identifier.ascending("message"), ...draft }]
+      return [...list, { id: itemId, ...draft }]
     })
     setFollowup("failed", draft.sessionID, undefined)
     setFollowup("paused", draft.sessionID, undefined)
@@ -1710,6 +1713,7 @@ export default function Page() {
     showToast({
       title: `📥 Queued (${pendingCount})`,
       description: "Will auto-send when model finishes",
+      actions: [{ label: "Undo", onClick: () => removeFollowup(itemId) }],
     })
   }
 
@@ -1844,17 +1848,39 @@ export default function Page() {
   createEffect(() => {
     const sessionID = params.id
     if (!sessionID) return
-
-    const item = queuedFollowups()[0]
-    if (!item) return
     if (followupBusy(sessionID)) return
-    if (followup.failed[sessionID] === item.id) return
     if (followup.paused[sessionID]) return
     if (isChildSession()) return
     if (composer.blocked()) return
     if (busy(sessionID)) return
 
-    void sendFollowup(sessionID, item.id)
+    const item = queuedFollowups()[0]
+    if (!item) return
+    if (followup.failed[sessionID] === item.id) return
+
+    // Initialize drain progress if not set
+    if (!drainProgress()) {
+      const total = queuedFollowups().length
+      setDrainProgress({ current: 0, total })
+    }
+
+    // Start countdown
+    const remaining = 2
+    setCountdown({ remaining })
+
+    const timer = window.setTimeout(() => {
+      setCountdown(undefined)
+      void sendFollowup(sessionID, item.id).then(() => {
+        setDrainProgress((prev) => {
+          if (!prev) return undefined
+          const next = { current: prev.current + 1, total: prev.total }
+          if (next.current >= next.total) return undefined
+          return next
+        })
+      })
+    }, remaining * 1000)
+
+    onCleanup(() => window.clearTimeout(timer))
   })
 
   createResizeObserver(
@@ -1950,6 +1976,8 @@ export default function Page() {
               onSend: (id) => void sendFollowup(params.id!, id, { manual: true }),
               onEdit: editFollowup,
               onRemove: removeFollowup,
+              drainProgress: drainProgress(),
+              countdown: countdown(),
             }
           : undefined,
       revert: () =>

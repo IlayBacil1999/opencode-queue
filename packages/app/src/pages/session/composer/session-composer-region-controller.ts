@@ -13,6 +13,8 @@ export type SessionComposerFollowupDock = {
   onSend: (id: string) => void
   onEdit: (id: string) => void
   onRemove?: (id: string) => void
+  drainProgress?: { current: number; total: number }
+  countdown?: { remaining: number }
 }
 
 export type SessionComposerRevertDock = {

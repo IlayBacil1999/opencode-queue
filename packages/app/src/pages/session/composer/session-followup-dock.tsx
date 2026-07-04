@@ -11,6 +11,8 @@ export function SessionFollowupDock(props: {
   onSend: (id: string) => void
   onEdit: (id: string) => void
   onRemove?: (id: string) => void
+  drainProgress?: { current: number; total: number }
+  countdown?: { remaining: number }
 }) {
   const language = useLanguage()
   const [store, setStore] = createStore({
@@ -74,6 +76,26 @@ export function SessionFollowupDock(props: {
 
       <Show when={store.collapsed}>
         <div class="h-5" aria-hidden="true" />
+      </Show>
+
+      <Show when={props.drainProgress && !store.collapsed}>
+        <div class="px-3 pb-2">
+          <div style="height:3px;background:var(--bg-layer-02,#2e2e2e);border-radius:4px;overflow:hidden">
+            <div style="height:100%;background:var(--v2-text-text-accent,#a2bcff);border-radius:4px;width:${Math.round((props.drainProgress!.current / props.drainProgress!.total) * 100)}%"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-faint,#808080);margin-top:4px">
+            {props.drainProgress!.current + 1} of {props.drainProgress!.total}
+          </div>
+        </div>
+      </Show>
+
+      <Show when={props.countdown && !store.collapsed}>
+        <div class="px-3 pb-2">
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--bg-layer-01,#242424);border-radius:4px;font-size:11px;color:var(--text-muted,#aeaeae)">
+            <span>▶ Next in</span>
+            <span style="font-size:13px;font-weight:530;font-variant-numeric:tabular-nums;color:var(--v2-text-text-accent,#a2bcff)">{props.countdown!.remaining}</span>
+          </div>
+        </div>
       </Show>
 
       <Show when={!store.collapsed}>
