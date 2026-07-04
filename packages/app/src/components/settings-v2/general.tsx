@@ -343,6 +343,29 @@ export const SettingsGeneralV2: Component<{
             </div>
           </SettingsRowV2>
         </Show>
+
+        <SettingsRowV2
+          title={language.t("settings.general.row.followup.title")}
+          description={language.t("settings.general.row.followup.description")}
+        >
+          <SelectV2
+            appearance="inline"
+            data-action="settings-followup"
+            options={[
+              { value: "steer", label: language.t("settings.general.row.followup.option.steer") },
+              { value: "queue", label: language.t("settings.general.row.followup.option.queue") },
+            ]}
+            current={[
+              { value: "steer", label: language.t("settings.general.row.followup.option.steer") },
+              { value: "queue", label: language.t("settings.general.row.followup.option.queue") },
+            ].find((o) => o.value === settings.general.followup())}
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(option) => option && settings.general.setFollowup(option.value as "queue" | "steer")}
+            placement="bottom-end"
+            gutter={6}
+          />
+        </SettingsRowV2>
       </SettingsListV2>
     </div>
   )
