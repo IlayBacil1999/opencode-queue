@@ -18,6 +18,7 @@ import {
   displayCharAt,
   displaySlice,
   isExitCommand,
+  isQueueCommand,
   mentionTriggerIndex,
   isNewCommand,
   movePromptHistory,
@@ -418,6 +419,7 @@ export function createPromptState(input: PromptInput): PromptState {
       } satisfies SlashOption,
       { kind: "slash", name: "new", display: "/new", description: "start a new session" } satisfies SlashOption,
       { kind: "slash", name: "exit", display: "/exit", description: "close OpenCode" } satisfies SlashOption,
+      { kind: "slash", name: "queue", display: "/queue", description: "queue a message to run after the current turn" } satisfies SlashOption,
     ]
     const hidden = new Set(builtins.map((item) => item.name))
     const showSkillMenu = !shell() && skillCommands().length > 0 && !hasSkillsCommand()
@@ -1186,7 +1188,7 @@ export function createPromptState(input: PromptInput): PromptState {
     }
 
     const parsed =
-      command || next.mode === "shell" || isNewCommand(next.text)
+      command || next.mode === "shell" || isNewCommand(next.text) || isQueueCommand(next.text)
         ? undefined
         : parseSlashCommand(next.text, input.commands())
     if (parsed?.type === "pending") {

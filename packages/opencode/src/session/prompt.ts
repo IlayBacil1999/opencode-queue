@@ -1066,7 +1066,7 @@ const layer = Layer.effect(
         yield* sessions.setPermission({ sessionID: session.id, permission: permissions })
       }
 
-      if (input.noReply === true) return message
+      if (input.noReply === true || input.delivery === "queue") return message
       return yield* loop({ sessionID: input.sessionID })
     })
 
@@ -1502,6 +1502,10 @@ export const PromptInput = Schema.Struct({
   model: Schema.optional(ModelRef),
   agent: Schema.optional(Schema.String),
   noReply: Schema.optional(Schema.Boolean),
+  delivery: Schema.optional(Schema.Literals(["steer", "queue"])).annotate({
+    description:
+      "Delivery mode for this prompt. 'steer' (default) promotes the input at the next safe provider-turn boundary. 'queue' keeps the input pending until the session would otherwise become idle, then promotes one queued input at that boundary.",
+  }),
   tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)).annotate({
     description:
       "@deprecated tools and permissions have been merged, you can set permissions on the session itself now",
