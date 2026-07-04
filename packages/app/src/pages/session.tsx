@@ -10,10 +10,12 @@ import {
   Switch,
   createMemo,
   createEffect,
+  createSignal,
   createComputed,
   on,
   onMount,
   type ParentProps,
+  type JSX,
   untrack,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -90,7 +92,7 @@ import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
 
 type FollowupItem = FollowupDraft & { id: string }
-type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
+type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context"> & { index?: number }
 const emptyFollowups: FollowupItem[] = []
 
 type ChangeMode = "git" | "branch" | "turn"
@@ -1642,10 +1644,40 @@ export default function Page() {
     return followupMutation.variables?.id
   })
 
+  const [perMessageMode, setPerMessageMode] = createSignal<"steer" | "queue" | undefined>()
+  const effectiveQueueMode = () => perMessageMode() ?? settings.general.followup()
+
   const queueEnabled = createMemo(() => {
     const id = params.id
     if (!id) return false
-    return settings.general.followup() === "queue" && busy(id) && !composer.blocked() && !isChildSession()
+    return effectiveQueueMode() === "queue" && busy(id) && !composer.blocked() && !isChildSession()
+  })
+
+  const queueModeToolbar = createMemo((): JSX.Element | undefined => {
+    const id = params.id
+    if (!id || !busy(id) || isChildSession()) return undefined
+    const mode = effectiveQueueMode()
+    const isSteer = mode === "steer"
+    const label = language.t(isSteer ? "settings.general.row.followup.option.steer" : "settings.general.row.followup.option.queue")
+    const nextLabel = language.t(isSteer ? "settings.general.row.followup.option.queue" : "settings.general.row.followup.option.steer")
+    return (
+      <div class="flex items-center gap-1 pl-1">
+        <button
+          type="button"
+          data-action="prompt-queue-mode"
+          class="h-7 px-[7px] rounded-[4px] text-[13px] font-[440] leading-none border-0 cursor-pointer flex items-center gap-[4px] transition-all duration-85"
+          style={{
+            background: isSteer ? "rgba(74,222,128,0.10)" : "rgba(59,92,246,0.10)",
+            color: isSteer ? "var(--v2-state-fg-success, #4ade80)" : "var(--v2-text-text-accent, #a2bcff)",
+          }}
+          onClick={() => setPerMessageMode(isSteer ? "queue" : "steer")}
+          title={`Switch to ${nextLabel} — next message only`}
+        >
+          <span style={{ "font-size": "14px", "line-height": "1" }}>{isSteer ? "→" : "📥"}</span>
+          <span>{label}</span>
+        </button>
+      </div>
+    )
   })
 
   const followupText = (item: FollowupDraft) => {
@@ -1666,12 +1698,20 @@ export default function Page() {
   }
 
   const queueFollowup = (draft: FollowupDraft) => {
-    setFollowup("items", draft.sessionID, (items) => [
-      ...(items ?? []),
-      { id: Identifier.ascending("message"), ...draft },
-    ])
+    setFollowup("items", draft.sessionID, (items) => {
+      const list = items ?? []
+      const editEntry = followup.edit[draft.sessionID]
+      if (editEntry?.index !== undefined && editEntry.index >= 0 && editEntry.index <= list.length) {
+        const before = list.slice(0, editEntry.index)
+        const after = list.slice(editEntry.index)
+        return [...before, { id: Identifier.ascending("message"), ...draft }, ...after]
+      }
+      return [...list, { id: Identifier.ascending("message"), ...draft }]
+    })
     setFollowup("failed", draft.sessionID, undefined)
     setFollowup("paused", draft.sessionID, undefined)
+    setFollowup("edit", draft.sessionID, undefined)
+    setPerMessageMode(undefined)
   }
 
   const followupDock = createMemo(() => queuedFollowups().map((item) => ({ id: item.id, text: followupText(item) })))
@@ -1690,8 +1730,10 @@ export default function Page() {
     if (!sessionID) return
     if (followupBusy(sessionID)) return
 
-    const item = queuedFollowups().find((entry) => entry.id === id)
-    if (!item) return
+    const items = queuedFollowups()
+    const index = items.findIndex((entry) => entry.id === id)
+    if (index < 0) return
+    const item = items[index]
 
     setFollowup("items", sessionID, (items) => (items ?? []).filter((entry) => entry.id !== id))
     setFollowup("failed", sessionID, (value) => (value === id ? undefined : value))
@@ -1699,6 +1741,7 @@ export default function Page() {
       id: item.id,
       prompt: item.prompt,
       context: item.context,
+      index,
     })
   }
 
@@ -1943,9 +1986,11 @@ export default function Page() {
             onSubmit={() => {
               comments.clear()
               resumeScroll()
+              setPerMessageMode(undefined)
             }}
             edit={editingFollowup()}
             onEditLoaded={clearFollowupEdit}
+            toolbar={queueModeToolbar()}
             shouldQueue={queueEnabled}
             onQueue={queueFollowup}
             onAbort={() => {
