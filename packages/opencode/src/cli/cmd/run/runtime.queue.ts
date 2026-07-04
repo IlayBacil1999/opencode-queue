@@ -10,7 +10,7 @@
 // Resolves when the footer closes and all in-flight work finishes.
 import * as Locale from "@/util/locale"
 import { MessageID, PartID } from "@/session/schema"
-import { isExitCommand, isNewCommand, isQueueCommand, parseQueueCommand } from "./prompt.shared"
+import { isExitCommand, isNewCommand } from "./prompt.shared"
 import type { FooterApi, FooterEvent, FooterQueuedPrompt, RunPrompt } from "./types"
 
 type Trace = {
@@ -275,64 +275,29 @@ export async function runPromptQueue(input: QueueInput): Promise<void> {
       return
     }
 
-    let next: RunPrompt = prompt
-    if (prompt.mode !== "shell" && !prompt.command && isQueueCommand(prompt.text)) {
-      const parsed = parseQueueCommand(prompt.text)
-      if (!parsed) {
-        emit(
-          {
-            type: "stream.patch",
-            patch: {
-              status: "usage: /queue <message>",
-            },
-          },
-          {
-            status: "usage: /queue <message>",
-          },
-        )
-        return
-      }
-      next = { ...prompt, text: parsed.text, delivery: "queue" }
-    }
-
     const active = state.active
-    const busyWithOrdinaryTurn =
+    if (
       active &&
       active.mode !== "shell" &&
       !active.command &&
-      next.mode !== "shell" &&
-      !next.command &&
-      !isNewCommand(next.text)
-
-    if (busyWithOrdinaryTurn) {
+      prompt.mode !== "shell" &&
+      !prompt.command &&
+      !isNewCommand(prompt.text)
+    ) {
       const queued: FooterQueuedPrompt = {
         messageID: MessageID.ascending(),
         partID: PartID.ascending(),
-        prompt: next,
+        prompt,
       }
       state.queued = [...state.queued, queued]
-      state.queue.push(next)
+      state.queue.push(prompt)
       syncQueue()
-      const label = next.delivery === "queue" ? `queued (${state.queue.length})` : `queued behind active turn (${state.queue.length})`
-      emit(
-        {
-          type: "stream.patch",
-          patch: {
-            status: label,
-            queue: state.queue.length,
-          },
-        },
-        {
-          status: label,
-          queue: state.queue.length,
-        },
-      )
       return
     }
 
-    state.queue.push(next)
+    state.queue.push(prompt)
     syncQueue()
-    if (next.mode !== "shell" && isNewCommand(next.text)) {
+    if (prompt.mode !== "shell" && isNewCommand(prompt.text)) {
       drain()
       return
     }

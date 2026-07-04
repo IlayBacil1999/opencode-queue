@@ -30,7 +30,6 @@ export function promptCopy(prompt: RunPrompt): RunPrompt {
     text: prompt.text,
     parts: structuredClone(prompt.parts),
     ...(prompt.mode ? { mode: prompt.mode } : {}),
-    ...(prompt.delivery ? { delivery: prompt.delivery } : {}),
     ...(prompt.command ? { command: prompt.command } : {}),
   }
 }
@@ -51,19 +50,6 @@ export function isExitCommand(input: string): boolean {
 
 export function isNewCommand(input: string): boolean {
   return input.trim().toLowerCase() === "/new"
-}
-
-export function isQueueCommand(input: string): boolean {
-  return input.trim().toLowerCase().startsWith("/queue")
-}
-
-export function parseQueueCommand(input: string): { text: string } | undefined {
-  const trimmed = input.trim()
-  const match = /^\/queue\s+(.*)$/s.exec(trimmed)
-  if (!match) return undefined
-  const text = match[1].trim()
-  if (!text) return undefined
-  return { text }
 }
 
 export function createPromptHistory(items?: RunPrompt[]): PromptHistoryState {

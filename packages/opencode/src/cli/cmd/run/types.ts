@@ -30,15 +30,12 @@ export type RunCommand = NonNullable<Awaited<ReturnType<OpencodeClient["command"
 
 export type RunProvider = NonNullable<Awaited<ReturnType<OpencodeClient["provider"]["list"]>>["data"]>["all"][number]
 
-export type RunPromptDelivery = "steer" | "queue"
-
 export type RunPrompt = {
   messageID?: string
   partID?: string
   text: string
   parts: RunPromptPart[]
   mode?: "shell"
-  delivery?: RunPromptDelivery
   command?: {
     name: string
     arguments: string

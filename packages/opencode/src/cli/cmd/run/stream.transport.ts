@@ -97,7 +97,6 @@ export type SessionTurnInput = {
   includeFiles: boolean
   onVisibleOutput?: (anchor: LocalReplayAnchor) => void
   signal?: AbortSignal
-  delivery?: "steer" | "queue"
 }
 
 export type SessionTransport = {
@@ -1224,7 +1223,6 @@ function createLayer(input: StreamInput) {
             agent: next.agent,
             model: next.model,
             variant: next.variant,
-            delivery: next.delivery ?? next.prompt.delivery,
             parts: [
               ...(next.includeFiles ? next.files : []),
               { type: "text" as const, text: next.prompt.text },
