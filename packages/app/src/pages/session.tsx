@@ -1656,27 +1656,21 @@ export default function Page() {
   const queueModeToolbar = createMemo((): JSX.Element | undefined => {
     const id = params.id
     if (!id || !busy(id) || isChildSession()) return undefined
-    const mode = effectiveQueueMode()
-    const isSteer = mode === "steer"
+    const isSteer = effectiveQueueMode() === "steer"
     const label = language.t(isSteer ? "settings.general.row.followup.option.steer" : "settings.general.row.followup.option.queue")
-    const nextLabel = language.t(isSteer ? "settings.general.row.followup.option.queue" : "settings.general.row.followup.option.steer")
     return (
-      <div class="flex items-center gap-1 pl-1">
-        <button
-          type="button"
-          data-action="prompt-queue-mode"
-          class="h-7 px-[7px] rounded-[4px] text-[13px] font-[440] leading-none border-0 cursor-pointer flex items-center gap-[4px] transition-all duration-85"
-          style={{
-            background: isSteer ? "rgba(74,222,128,0.10)" : "rgba(59,92,246,0.10)",
-            color: isSteer ? "var(--v2-state-fg-success, #4ade80)" : "var(--v2-text-text-accent, #a2bcff)",
-          }}
-          onClick={() => setPerMessageMode(isSteer ? "queue" : "steer")}
-          title={`Switch to ${nextLabel} — next message only`}
-        >
-          <span style={{ "font-size": "14px", "line-height": "1" }}>{isSteer ? "→" : "📥"}</span>
-          <span>{label}</span>
-        </button>
-      </div>
+      <span
+        role="button"
+        tabIndex={0}
+        data-action="prompt-queue-mode"
+        class="cursor-pointer text-[13px] font-[440] leading-none transition-colors duration-85"
+        style={{ color: isSteer ? "var(--v2-state-fg-success, #4ade80)" : "var(--v2-text-text-accent, #a2bcff)" }}
+        onClick={() => setPerMessageMode(isSteer ? "queue" : "steer")}
+        onKeyDown={(e) => { if (e.key === "Enter") setPerMessageMode(isSteer ? "queue" : "steer") }}
+        title={`Switch to ${language.t(isSteer ? "settings.general.row.followup.option.queue" : "settings.general.row.followup.option.steer")}`}
+      >
+        {isSteer ? "→ Steer" : "📥 Queue"}
+      </span>
     )
   })
 
@@ -1712,6 +1706,17 @@ export default function Page() {
     setFollowup("paused", draft.sessionID, undefined)
     setFollowup("edit", draft.sessionID, undefined)
     setPerMessageMode(undefined)
+    const pendingCount = (followup.items[draft.sessionID]?.length ?? 0) + 1
+    showToast({
+      title: `📥 Queued (${pendingCount})`,
+      description: "Will auto-send when model finishes",
+    })
+  }
+
+  const removeFollowup = (id: string) => {
+    const sessionID = params.id
+    if (!sessionID) return
+    setFollowup("items", sessionID, (items) => (items ?? []).filter((entry) => entry.id !== id))
   }
 
   const followupDock = createMemo(() => queuedFollowups().map((item) => ({ id: item.id, text: followupText(item) })))
@@ -1944,6 +1949,7 @@ export default function Page() {
               sending: sendingFollowup(),
               onSend: (id) => void sendFollowup(params.id!, id, { manual: true }),
               onEdit: editFollowup,
+              onRemove: removeFollowup,
             }
           : undefined,
       revert: () =>

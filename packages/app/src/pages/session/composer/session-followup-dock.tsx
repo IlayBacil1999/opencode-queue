@@ -10,10 +10,11 @@ export function SessionFollowupDock(props: {
   sending?: string
   onSend: (id: string) => void
   onEdit: (id: string) => void
+  onRemove?: (id: string) => void
 }) {
   const language = useLanguage()
   const [store, setStore] = createStore({
-    collapsed: false,
+    collapsed: true,
   })
 
   const toggle = () => setStore("collapsed", (value) => !value)
@@ -99,6 +100,17 @@ export function SessionFollowupDock(props: {
                 >
                   {language.t("session.followupDock.edit")}
                 </Button>
+                <Show when={props.onRemove}>
+                  <Button
+                    size="small"
+                    variant="ghost"
+                    class="shrink-0"
+                    disabled={!!props.sending}
+                    onClick={() => props.onRemove?.(item.id)}
+                  >
+                    Remove
+                  </Button>
+                </Show>
               </div>
             )}
           </For>
