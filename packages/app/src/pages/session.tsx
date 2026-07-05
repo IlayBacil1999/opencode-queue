@@ -1652,6 +1652,8 @@ export default function Page() {
   const queueEnabled = createMemo(() => {
     const id = params.id
     if (!id) return false
+    // Force queue when editing a queued item — edits always re-queue
+    if (followup.edit[id]) return true
     return effectiveQueueMode() === "queue" && busy(id) && !composer.blocked() && !isChildSession()
   })
 
@@ -1662,9 +1664,17 @@ export default function Page() {
     // Show edit indicator when editing a queued message
     const editEntry = editingFollowup()
     if (editEntry) {
+      const preview = editEntry.prompt
+        .map((p) => ("content" in p ? p.content : ""))
+        .join("")
+        .split("\n")[0]
+        .trim()
+        .substring(0, 50)
       return (
         <span class="flex items-center gap-3 text-[13px] font-[440] leading-none">
-          <span style="color:var(--v2-text-text-faint,#808080)">Editing queued message</span>
+          <span style="color:var(--v2-text-text-faint,#808080)">
+            Editing: <span style="color:var(--v2-text-text-muted,#aeaeae)">"{preview}"</span>
+          </span>
           <span
             role="button"
             tabIndex={0}
@@ -1740,13 +1750,36 @@ export default function Page() {
     })
   }
 
+  // Escape during edit restores the item to the queue
+  createEffect(() => {
+    if (!editingFollowup()) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault()
+        restoreFollowupEdit()
+      }
+    }
+    document.addEventListener("keydown", handler)
+    onCleanup(() => document.removeEventListener("keydown", handler))
+  })
+
   const removeFollowup = (id: string) => {
     const sessionID = params.id
     if (!sessionID) return
     setFollowup("items", sessionID, (items) => (items ?? []).filter((entry) => entry.id !== id))
   }
 
-  const followupDock = createMemo(() => queuedFollowups().map((item) => ({ id: item.id, text: followupText(item) })))
+  const followupDock = createMemo(() => {
+    const items = queuedFollowups().map((item) => ({ id: item.id, text: followupText(item) }))
+    const editEntry = editingFollowup()
+    if (editEntry?.index !== undefined) {
+      const placeholder = { id: "editing-placeholder", text: "Editing…" }
+      const before = items.slice(0, editEntry.index)
+      const after = items.slice(editEntry.index)
+      return [...before, placeholder, ...after]
+    }
+    return items
+  })
 
   const sendFollowup = (sessionID: string, id: string, opts?: { manual?: boolean }) => {
     if (sync().session.get(sessionID)?.parentID) return Promise.resolve()
