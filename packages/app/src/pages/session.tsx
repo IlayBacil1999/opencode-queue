@@ -2065,6 +2065,7 @@ export default function Page() {
               onRemove: removeFollowup,
               drainProgress: drainProgress(),
               countdown: countdown(),
+              editingId: editingFollowup()?.id,
             }
           : undefined,
       revert: () =>

@@ -13,6 +13,7 @@ export function SessionFollowupDock(props: {
   onRemove?: (id: string) => void
   drainProgress?: { current: number; total: number }
   countdown?: { remaining: number }
+  editingId?: string
 }) {
   const language = useLanguage()
   const [store, setStore] = createStore({
@@ -20,13 +21,16 @@ export function SessionFollowupDock(props: {
   })
 
   const toggle = () => setStore("collapsed", (value) => !value)
-  const total = createMemo(() => props.items.length)
-  const label = createMemo(() =>
-    language.t(total() === 1 ? "session.followupDock.summary.one" : "session.followupDock.summary.other", {
-      count: total(),
-    }),
-  )
-  const preview = createMemo(() => props.items[0]?.text ?? "")
+  const realItems = createMemo(() => props.items.filter((i) => i.id !== "editing-placeholder"))
+  const isEditing = createMemo(() => !!props.editingId)
+  const total = createMemo(() => realItems().length)
+  const label = createMemo(() => {
+    const count = total()
+    const editing = isEditing()
+    if (editing) return `${count + 1} queued · 1 editing`
+    return language.t(count === 1 ? "session.followupDock.summary.one" : "session.followupDock.summary.other", { count })
+  })
+  const preview = createMemo(() => realItems()[0]?.text ?? "")
 
   return (
     <DockTray
@@ -125,7 +129,7 @@ export function SessionFollowupDock(props: {
                     size="small"
                     variant="ghost"
                     class="shrink-0"
-                    disabled={!!props.sending}
+                    disabled={!!props.sending || (!!props.editingId && props.editingId !== item.id)}
                     onClick={() => props.onEdit(item.id)}
                   >
                     {language.t("session.followupDock.edit")}
