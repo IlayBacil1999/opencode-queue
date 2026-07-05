@@ -92,7 +92,7 @@ import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
 
 type FollowupItem = FollowupDraft & { id: string }
-type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context"> & { index?: number }
+type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context" | "sessionDirectory" | "agent" | "model"> & { index?: number; variant?: string }
 const emptyFollowups: FollowupItem[] = []
 
 type ChangeMode = "git" | "branch" | "turn"
@@ -1657,7 +1657,30 @@ export default function Page() {
 
   const queueModeToolbar = createMemo((): JSX.Element | undefined => {
     const id = params.id
-    if (!id || !busy(id) || isChildSession()) return undefined
+    if (!id || isChildSession()) return undefined
+
+    // Show edit indicator when editing a queued message
+    const editEntry = editingFollowup()
+    if (editEntry) {
+      return (
+        <span class="flex items-center gap-3 text-[13px] font-[440] leading-none">
+          <span style="color:var(--v2-text-text-faint,#808080)">Editing queued message</span>
+          <span
+            role="button"
+            tabIndex={0}
+            data-action="prompt-cancel-edit"
+            class="cursor-pointer transition-colors duration-85"
+            style="color:var(--v2-text-text-muted,#aeaeae)"
+            onClick={() => restoreFollowupEdit()}
+            onKeyDown={(e) => { if (e.key === "Enter") restoreFollowupEdit() }}
+          >
+            ← Cancel
+          </span>
+        </span>
+      )
+    }
+
+    if (!busy(id)) return undefined
     const isSteer = effectiveQueueMode() === "steer"
     const label = language.t(isSteer ? "settings.general.row.followup.option.steer" : "settings.general.row.followup.option.queue")
     return (
@@ -1750,8 +1773,29 @@ export default function Page() {
       id: item.id,
       prompt: item.prompt,
       context: item.context,
+      sessionDirectory: item.sessionDirectory,
+      agent: item.agent,
+      model: item.model,
+      variant: item.variant,
       index,
     })
+  }
+
+  const restoreFollowupEdit = () => {
+    const sessionID = params.id
+    if (!sessionID) return
+    const editEntry = followup.edit[sessionID]
+    if (!editEntry) return
+    const draft: FollowupDraft = {
+      sessionID,
+      sessionDirectory: editEntry.sessionDirectory,
+      prompt: editEntry.prompt,
+      context: editEntry.context,
+      agent: editEntry.agent,
+      model: editEntry.model,
+      variant: editEntry.variant,
+    }
+    queueFollowup(draft)
   }
 
   const clearFollowupEdit = () => {
@@ -1759,6 +1803,16 @@ export default function Page() {
     if (!id) return
     setFollowup("edit", id, undefined)
   }
+
+  // Clear stale edit state when session changes
+  createEffect(() => {
+    const id = params.id
+    const editEntry = followup.edit[id ?? ""]
+    if (!id && editEntry) return
+    if (id && editEntry && editEntry.sessionID !== id) {
+      setFollowup("edit", id, undefined)
+    }
+  })
 
   const halt = (sessionID: string) =>
     busy(sessionID)
