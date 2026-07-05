@@ -7,7 +7,6 @@ import { rmSync } from "node:fs"
 import { app, BrowserWindow, dialog, net, nativeImage, nativeTheme, protocol } from "electron"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import type { TitlebarTheme } from "../preload/types"
 import { exportDebugLogs, write as writeLog } from "./logging"
 import { getStore, removeStoreFile } from "./store"
 import { PINCH_ZOOM_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
@@ -46,7 +45,6 @@ let relaunchHandler = () => {
   app.relaunch()
   app.exit(0)
 }
-const titlebarThemes = new WeakMap<BrowserWindow, Partial<TitlebarTheme>>()
 const pinchZoomEnabled = new WeakMap<BrowserWindow, boolean>()
 const windowIDs = new WeakMap<BrowserWindow, string>()
 const registry = createWindowRegistry<BrowserWindow>({
@@ -57,7 +55,6 @@ const registry = createWindowRegistry<BrowserWindow>({
     removeStoreFile(windowDataFile(id))
   },
 })
-const titlebarHeight = 40
 const maxZoomLevel = 10
 const minZoomLevel = 0.2
 
@@ -93,25 +90,6 @@ function tone() {
 
 function defaultBackgroundColor() {
   return oc2Background[tone()]
-}
-
-function overlay(theme: Partial<TitlebarTheme> = {}, zoom = 1) {
-  const mode = theme.mode ?? tone()
-  return {
-    color: "#00000000",
-    symbolColor: mode === "dark" ? "white" : "black",
-    height: Math.max(titlebarHeight, Math.round(titlebarHeight * zoom)),
-  }
-}
-
-export function setTitlebar(win: BrowserWindow, theme: Partial<TitlebarTheme> = {}) {
-  titlebarThemes.set(win, theme)
-  updateTitlebar(win)
-}
-
-export function updateTitlebar(win: BrowserWindow) {
-  if (process.platform !== "win32") return
-  win.setTitleBarOverlay(overlay(titlebarThemes.get(win), win.webContents.getZoomFactor()))
 }
 
 export function setPinchZoomEnabled(enabled: boolean) {
@@ -179,7 +157,6 @@ export function createMainWindow(id: string = randomUUID()) {
       ? {
           frame: false,
           titleBarStyle: "hidden" as const,
-          titleBarOverlay: overlay({ mode }),
         }
       : {}),
     webPreferences: {
@@ -226,6 +203,10 @@ function registerWindow(win: BrowserWindow, id: string) {
   // gets session-end before it closes; flag the quit so ids stay persisted.
   win.on("session-end", () => registry.setQuitting())
   win.on("closed", () => registry.closed(id))
+  if (process.platform === "win32") {
+    win.on("maximize", () => win.webContents.send("maximize-changed", true))
+    win.on("unmaximize", () => win.webContents.send("maximize-changed", false))
+  }
 }
 
 function windowStateFile(id: string) {
@@ -467,7 +448,6 @@ function clampZoom(value: number) {
 }
 
 function updateZoom(win: BrowserWindow) {
-  updateTitlebar(win)
   win.webContents.send("zoom-factor-changed", win.webContents.getZoomFactor())
 }
 

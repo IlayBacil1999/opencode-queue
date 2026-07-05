@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, Match, Show, Switch, untrack } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, Match, onCleanup, onMount, Show, Switch, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { IconButton } from "@opencode-ai/ui/icon-button"
@@ -52,7 +52,6 @@ const currentThemeWindow = () => tauriApi()?.webviewWindow?.getCurrentWebviewWin
 const legacyTitlebarHeight = 40
 const v2TitlebarHeight = 36
 const minTitlebarZoom = 0.25
-const windowsControlsBaseWidth = 138 // 3 native Windows caption buttons at 46px each.
 
 export type TitlebarUpdate = {
   version: () => string | undefined
@@ -89,8 +88,6 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
     if (windows()) return `${height / Math.min(titlebarZoom(), 1)}px`
     return undefined
   }
-  const windowsControlsWidth = () => `${windowsControlsBaseWidth / Math.max(titlebarZoom(), 1)}px`
-
   const [history, setHistory] = createStore({
     stack: [] as string[],
     index: 0,
@@ -231,11 +228,6 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
         "min-height": minHeight(),
         // Keep native macOS traffic lights clear even when the desktop window is narrow.
         "padding-left": mac() ? `${84 / zoom()}px` : 0,
-        width: electronWindows() ? `env(titlebar-area-width, calc(100vw - ${windowsControlsWidth()}))` : undefined,
-        "max-width": electronWindows()
-          ? `env(titlebar-area-width, calc(100vw - ${windowsControlsWidth()}))`
-          : undefined,
-        "align-self": electronWindows() ? "flex-start" : undefined,
       }}
       data-tauri-drag-region
       onMouseDown={drag}
@@ -491,6 +483,9 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
                 </Show>
                 <div class="flex-1" />
                 <TitlebarV2Right state={v2RightState()} />
+                <Show when={electronWindows()}>
+                  <WindowsCaptionButtons />
+                </Show>
                 <Show when={windows() && !electronWindows()}>
                   <div data-tauri-decorum-tb class="flex flex-row" />
                 </Show>
@@ -646,8 +641,10 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
               onMouseDown={drag}
             >
               <div id="opencode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
-              <Show when={windows()}>
-                {!tauriApi() && <div class="shrink-0" style={{ width: windowsControlsWidth() }} />}
+              <Show when={electronWindows()}>
+                <WindowsCaptionButtons />
+              </Show>
+              <Show when={windows() && !electronWindows()}>
                 <div data-tauri-decorum-tb class="flex flex-row" />
               </Show>
             </div>
@@ -720,5 +717,61 @@ function ChannelIndicator() {
         </div>
       )}
     </>
+  )
+}
+
+function WindowsCaptionButtons() {
+  const [maximized, setMaximized] = createSignal(false)
+  let unlisten: (() => void) | undefined
+
+  onMount(() => {
+    window.api.isMaximized().then(setMaximized)
+    unlisten = window.api.onMaximizeChanged(setMaximized)
+  })
+
+  onCleanup(() => unlisten?.())
+
+  const btn = "oc-caption-btn"
+  const icon = "size-3"
+
+  return (
+    <div class="flex flex-row shrink-0 h-full">
+      <button class={btn} onClick={() => window.api.minimizeWindow()} aria-label="Minimize">
+        <svg class={icon} viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="5.5" width="8" height="1" /></svg>
+      </button>
+      <button class={btn} onClick={() => window.api.toggleMaximize()} aria-label={maximized() ? "Restore" : "Maximize"}>
+        <svg class={icon} viewBox="0 0 12 12" stroke="currentColor" fill="none" stroke-width="1">
+          {maximized() ? (
+            <>
+              <rect x="4" y="1" width="7" height="7" />
+              <rect x="1" y="4" width="7" height="7" fill="var(--v2-background-bg-deep, var(--background-base))" />
+            </>
+          ) : (
+            <rect x="2" y="2" width="8" height="8" />
+          )}
+        </svg>
+      </button>
+      <button
+        class={`${btn} oc-caption-close`}
+        onClick={() => window.api.closeWindow()}
+        aria-label="Close"
+      >
+        <svg class={icon} viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.2" fill="none"><path d="M3 3l6 6M9 3l-6 6" /></svg>
+      </button>
+      <style>{`
+        .oc-caption-btn {
+          display: flex; align-items: center; justify-content: center;
+          width: 46px; flex-shrink: 0; height: 100%;
+          border: 0; background: transparent; padding: 0; margin: 0;
+          outline: none; cursor: default;
+          transition: background 0.1s;
+          color: inherit;
+        }
+        .oc-caption-btn:hover { background: rgba(128, 128, 128, 0.15); }
+        .oc-caption-btn:active { background: rgba(128, 128, 128, 0.25); }
+        .oc-caption-close:hover { background: #e81123 !important; color: #fff !important; }
+        .oc-caption-close:active { background: #bf0f1d !important; }
+      `}</style>
+    </div>
   )
 }
