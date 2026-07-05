@@ -112,7 +112,15 @@ const api: ElectronAPI = {
     ipcRenderer.on("zoom-factor-changed", handler)
     return () => ipcRenderer.removeListener("zoom-factor-changed", handler)
   },
-  setTitlebar: (theme) => ipcRenderer.invoke("set-titlebar", theme),
+  minimizeWindow: () => ipcRenderer.invoke("window-minimize"),
+  toggleMaximize: () => ipcRenderer.invoke("window-toggle-maximize"),
+  isMaximized: () => ipcRenderer.invoke("window-is-maximized"),
+  closeWindow: () => ipcRenderer.invoke("window-close"),
+  onMaximizeChanged: (cb) => {
+    const handler = (_: unknown, maximized: boolean) => cb(maximized)
+    ipcRenderer.on("maximize-changed", handler)
+    return () => ipcRenderer.removeListener("maximize-changed", handler)
+  },
   runDesktopMenuAction: (action) => ipcRenderer.invoke("run-desktop-menu-action", action),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
   exportDebugLogs: () => ipcRenderer.invoke("export-debug-logs"),

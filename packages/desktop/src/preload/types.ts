@@ -29,9 +29,6 @@ export type UpdaterAPI = {
 }
 
 export type LinuxDisplayBackend = "wayland" | "auto"
-export type TitlebarTheme = {
-  mode: "light" | "dark"
-}
 export type FatalRendererError = {
   error: string
   url: string
@@ -95,7 +92,11 @@ export type ElectronAPI = {
   setPinchZoomEnabled: (enabled: boolean) => Promise<void>
   onPinchZoomEnabledChanged: (cb: (enabled: boolean) => void) => () => void
   onZoomFactorChanged: (cb: (factor: number) => void) => () => void
-  setTitlebar: (theme: TitlebarTheme) => Promise<void>
+  minimizeWindow: () => Promise<void>
+  toggleMaximize: () => Promise<void>
+  isMaximized: () => Promise<boolean>
+  closeWindow: () => Promise<void>
+  onMaximizeChanged: (cb: (maximized: boolean) => void) => () => void
   runDesktopMenuAction: (action: DesktopMenuAction) => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
   exportDebugLogs: () => Promise<string>
