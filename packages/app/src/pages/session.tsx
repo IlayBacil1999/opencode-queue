@@ -15,7 +15,6 @@ import {
   on,
   onMount,
   type ParentProps,
-  type JSX,
   untrack,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -1662,69 +1661,13 @@ export default function Page() {
     return followupMutation.variables?.id
   })
 
-  const [perMessageMode, setPerMessageMode] = createSignal<"steer" | "queue" | undefined>()
   const [drainProgress, setDrainProgress] = createSignal<{ current: number; total: number }>()
-  const [countdown, setCountdown] = createSignal<{ remaining: number }>()
-  const effectiveQueueMode = () => perMessageMode() ?? settings.general.followup()
 
   const queueEnabled = createMemo(() => {
     const id = params.id
     if (!id) return false
-    // Force queue when editing a queued item — edits always re-queue
     if (followup.edit[id]) return true
-    return effectiveQueueMode() === "queue" && busy(id) && !composer.blocked() && !isChildSession()
-  })
-
-  const queueModeToolbar = createMemo((): JSX.Element | undefined => {
-    const id = params.id
-    if (!id || isChildSession()) return undefined
-
-    // Show edit indicator when editing a queued message
-    const editEntry = editingFollowup()
-    if (editEntry) {
-      const preview = editEntry.prompt
-        .map((p) => ("content" in p ? p.content : ""))
-        .join("")
-        .split("\n")[0]
-        .trim()
-        .substring(0, 50)
-      return (
-        <span class="flex items-center gap-3 text-[13px] font-[440] leading-none">
-          <span style="color:var(--v2-text-text-faint,#808080)">
-            Editing: <span style="color:var(--v2-text-text-muted,#aeaeae)">"{preview}"</span>
-          </span>
-          <span
-            role="button"
-            tabIndex={0}
-            data-action="prompt-cancel-edit"
-            class="cursor-pointer transition-colors duration-85"
-            style="color:var(--v2-text-text-muted,#aeaeae)"
-            onClick={() => restoreFollowupEdit()}
-            onKeyDown={(e) => { if (e.key === "Enter") restoreFollowupEdit() }}
-          >
-            ← Cancel
-          </span>
-        </span>
-      )
-    }
-
-    if (!busy(id)) return undefined
-    const isSteer = effectiveQueueMode() === "steer"
-    const label = language.t(isSteer ? "settings.general.row.followup.option.steer" : "settings.general.row.followup.option.queue")
-    return (
-      <span
-        role="button"
-        tabIndex={0}
-        data-action="prompt-queue-mode"
-        class="cursor-pointer text-[13px] font-[440] leading-none transition-colors duration-85"
-        style={{ color: isSteer ? "var(--v2-state-fg-success, #4ade80)" : "var(--v2-text-text-accent, #a2bcff)" }}
-        onClick={() => setPerMessageMode(isSteer ? "queue" : "steer")}
-        onKeyDown={(e) => { if (e.key === "Enter") setPerMessageMode(isSteer ? "queue" : "steer") }}
-        title={`Switch to ${language.t(isSteer ? "settings.general.row.followup.option.queue" : "settings.general.row.followup.option.steer")}`}
-      >
-        {isSteer ? "→ Steer" : "📥 Queue"}
-      </span>
-    )
+    return settings.general.followup() === "queue" && busy(id) && !composer.blocked() && !isChildSession()
   })
 
   const followupText = (item: FollowupDraft) => {
@@ -1759,7 +1702,6 @@ export default function Page() {
     setFollowup("failed", draft.sessionID, undefined)
     setFollowup("paused", draft.sessionID, undefined)
     setFollowup("edit", draft.sessionID, undefined)
-    setPerMessageMode(undefined)
     const pendingCount = (followup.items[draft.sessionID]?.length ?? 0) + 1
     showToast({
       title: `📥 Queued (${pendingCount})`,
@@ -1865,6 +1807,37 @@ export default function Page() {
     }
   })
 
+  const reorderFollowup = (id: string, direction: -1 | 1) => {
+    const sessionID = params.id
+    if (!sessionID) return
+    setFollowup("items", sessionID, (items) => {
+      const list = items ?? []
+      const index = list.findIndex((entry) => entry.id === id)
+      if (index < 0) return list
+      const target = index + direction
+      if (target < 0 || target >= list.length) return list
+      const next = [...list]
+      next[index] = next[target]
+      next[target] = list[index]
+      return next
+    })
+  }
+
+  const moveFollowup = (id: string, toIndex: number) => {
+    const sessionID = params.id
+    if (!sessionID) return
+    setFollowup("items", sessionID, (items) => {
+      const list = items ?? []
+      const fromIndex = list.findIndex((entry) => entry.id === id)
+      if (fromIndex < 0 || fromIndex === toIndex) return list
+      const clamped = Math.max(0, Math.min(toIndex, list.length))
+      const next = [...list]
+      next.splice(fromIndex, 1)
+      next.splice(fromIndex < clamped ? clamped - 1 : clamped, 0, list[fromIndex])
+      return next
+    })
+  }
+
   const halt = (sessionID: string) =>
     busy(sessionID)
       ? sdk()
@@ -1969,23 +1942,14 @@ export default function Page() {
       setDrainProgress({ current: 0, total })
     }
 
-    // Start countdown
-    const remaining = 2
-    setCountdown({ remaining })
-
-    const timer = window.setTimeout(() => {
-      setCountdown(undefined)
-      void sendFollowup(sessionID, item.id).then(() => {
-        setDrainProgress((prev) => {
-          if (!prev) return undefined
-          const next = { current: prev.current + 1, total: prev.total }
-          if (next.current >= next.total) return undefined
-          return next
-        })
+    void sendFollowup(sessionID, item.id).then(() => {
+      setDrainProgress((prev) => {
+        if (!prev) return undefined
+        const next = { current: prev.current + 1, total: prev.total }
+        if (next.current >= next.total) return undefined
+        return next
       })
-    }, remaining * 1000)
-
-    onCleanup(() => window.clearTimeout(timer))
+    })
   })
 
   createResizeObserver(
@@ -2082,7 +2046,6 @@ export default function Page() {
               onEdit: editFollowup,
               onRemove: removeFollowup,
               drainProgress: drainProgress(),
-              countdown: countdown(),
               editingId: editingFollowup()?.id,
             }
           : undefined,
@@ -2126,11 +2089,9 @@ export default function Page() {
             onSubmit={() => {
               comments.clear()
               resumeScroll()
-              setPerMessageMode(undefined)
             }}
             edit={editingFollowup()}
             onEditLoaded={clearFollowupEdit}
-            toolbar={queueModeToolbar()}
             shouldQueue={queueEnabled}
             onQueue={queueFollowup}
             onAbort={() => {

@@ -81,7 +81,7 @@ export type PromptInputHistory = {
 
 export type PromptInputSubmission = {
   abort: () => Promise<void> | void
-  handleSubmit: (event: Event) => Promise<void> | void
+  handleSubmit: (event: Event, queue?: boolean) => Promise<void> | void
 }
 
 export type PromptInputControls = {
@@ -1437,6 +1437,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       if (navigateHistory(direction)) {
         event.preventDefault()
       }
+      return
+    }
+
+    // Ctrl+Enter queues the prompt in normal mode; ignored in shell mode
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key === "Enter") {
+      if (store.mode !== "normal" || !props.onQueue) return
+      event.preventDefault()
+      if (event.repeat) return
+      void handleSubmit(event, true)
       return
     }
 

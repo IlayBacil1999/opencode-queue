@@ -139,7 +139,6 @@ export function SessionComposerRegion(props: {
                   onEdit={controller.followup()!.onEdit}
                   onRemove={controller.followup()!.onRemove}
                   drainProgress={controller.followup()!.drainProgress}
-                  countdown={controller.followup()!.countdown}
                   editingId={controller.followup()!.editingId}
                 />
               </Show>

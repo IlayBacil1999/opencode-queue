@@ -12,7 +12,7 @@ function createPromptInputStoryRuntime() {
     history: createPromptInputHistory(),
     submission: {
       abort() {},
-      handleSubmit(event: Event) {
+      handleSubmit(event: Event, _queue?: boolean) {
         event.preventDefault()
         state.reset()
       },

@@ -14,7 +14,6 @@ export type SessionComposerFollowupDock = {
   onEdit: (id: string) => void
   onRemove?: (id: string) => void
   drainProgress?: { current: number; total: number }
-  countdown?: { remaining: number }
   editingId?: string
 }
 
