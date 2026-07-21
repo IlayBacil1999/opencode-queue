@@ -25,6 +25,7 @@ import { readSessionTabsRemovedDetail, SESSION_TABS_REMOVED_EVENT } from "@/comp
 import { useGlobal } from "@/context/global"
 import { ServerConnection, useServer } from "@/context/server"
 import { tabKey, useTabs } from "@/context/tabs"
+import type { PromptSession } from "@/context/prompt"
 import "./titlebar.css"
 import { newTabTooltipKeybind } from "./command-tooltip-keybind"
 
@@ -65,7 +66,7 @@ export function useTitlebarRightMount() {
   return mount
 }
 
-export function Titlebar(props: { update?: TitlebarUpdate }) {
+export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visible: boolean; toggle: () => void } }) {
   const layout = useLayout()
   const platform = usePlatform()
   const command = useCommand()
@@ -316,13 +317,20 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
               const route = layout.route()
               const activeSession = session()
               if (route.type === "session" && activeSession) {
-                tabs.newDraft({ server: route.server ?? server.key, directory: activeSession.directory }, "")
+                const sessionTab = {
+                  type: "session" as const,
+                  server: route.server ?? server.key,
+                  sessionId: activeSession.id,
+                }
+                const model = tabs.stateValue<PromptSession>(sessionTab, "prompt")?.model.current()
+                tabs.newDraft({ server: sessionTab.server, directory: activeSession.directory }, "", model)
                 return
               }
 
               const activeTab = currentTab()
               if (activeTab?.type === "draft") {
-                tabs.newDraft({ server: activeTab.server, directory: activeTab.directory }, "")
+                const model = tabs.stateValue<PromptSession>(activeTab, "prompt")?.model.current()
+                tabs.newDraft({ server: activeTab.server, directory: activeTab.directory }, "", model)
                 return
               }
 
@@ -376,7 +384,7 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
                   id: "tab.new",
                   category: "tab",
                   title: language.t("command.session.new"),
-                  keybind: "mod+t",
+                  keybind: "mod+t,mod+n",
                   hidden: true,
                   onSelect: openNewTab,
                 },
@@ -446,7 +454,7 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
                   "md:pl-4": !mac(),
                 }}
               >
-                <ChannelIndicator />
+                <ChannelIndicator debugTools={props.debugTools} />
                 <Show when={windows() || linux()}>
                   <WindowsAppMenu command={command} platform={platform} variant="v2" />
                 </Show>
@@ -647,9 +655,9 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
                       </div>
                     </Show>
                     <div id="opencode-titlebar-left" class="flex items-center gap-3 min-w-0 px-2" />
-                    <ChannelIndicator />
                   </div>
                 </div>
+                <ChannelIndicator debugTools={props.debugTools} />
               </div>
             </div>
 
@@ -736,12 +744,27 @@ function TitlebarUpdateIconButton(props: { state: TitlebarUpdatePillState }) {
   )
 }
 
-function ChannelIndicator() {
+function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () => void } }) {
+  const channel = import.meta.env.VITE_OPENCODE_CHANNEL
+  if (channel === "dev" && props.debugTools) {
+    return (
+      <button
+        type="button"
+        class="bg-icon-interactive-base text-[#FFF] font-medium px-2 rounded-sm uppercase font-mono cursor-pointer"
+        onClick={props.debugTools.toggle}
+        aria-label="Toggle debug tools"
+        aria-pressed={props.debugTools.visible}
+      >
+        DEV
+      </button>
+    )
+  }
+
   return (
     <>
-      {["beta", "dev"].includes(import.meta.env.VITE_OPENCODE_CHANNEL) && (
+      {["beta", "dev"].includes(channel) && (
         <div class="bg-icon-interactive-base text-[#FFF] font-medium px-2 rounded-sm uppercase font-mono">
-          {import.meta.env.VITE_OPENCODE_CHANNEL.toUpperCase()}
+          {channel.toUpperCase()}
         </div>
       )}
     </>
