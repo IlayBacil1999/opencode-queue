@@ -167,6 +167,12 @@ export function PromptInputV2(props: PromptInputV2Props) {
             }}
             onKeyDown={(event) => {
               if (props.controller.onKeyDown(event)) return
+              if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key === "Enter") {
+                event.preventDefault()
+                if (event.repeat) return
+                props.controller.submit(true)
+                return
+              }
               if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
                 event.preventDefault()
                 if (event.repeat) return

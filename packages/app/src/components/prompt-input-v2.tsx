@@ -465,7 +465,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       submit: {
         stopping,
         working,
-        onSubmit: () => void submission.handleSubmit(new Event("submit")),
+        onSubmit: (queue?) => void submission.handleSubmit(new Event("submit"), queue),
         onStop: () => void submission.abort(),
       },
     },
